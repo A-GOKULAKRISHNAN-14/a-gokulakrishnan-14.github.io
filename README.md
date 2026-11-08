@@ -53,4 +53,4 @@ A modern, responsive, high-performance portfolio showcasing full-stack web devel
 
 - **Email**: [gokulakrishnan.agk14@gmail.com](mailto:gokulakrishnan.agk14@gmail.com)
 - **LinkedIn**: [linkedin.com/in/gokulakrishnan14](https://www.linkedin.com/in/gokulakrishnan14/)
-- **Instagram**: [@life.of.dev.14](https://www.instagram.com/life.of.dev.14/)
+- **Instagram**: [@agk_14](https://www.instagram.com/agk_14/)
