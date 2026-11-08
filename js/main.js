@@ -489,21 +489,34 @@
       if (data.website || Date.now() - shownAt < 2500) { showDone(data); return; }
       delete data.website;
 
-      const endpoint = qf.dataset.endpoint;
+      let endpoint = (qf.dataset.endpoint || "").trim();
+      if (endpoint && !endpoint.startsWith("http")) {
+        endpoint = `https://script.google.com/macros/s/${endpoint}/exec`;
+      }
       const fail = () => {
         status.innerHTML = `Sorry, that didn't go through. <a href="${waFallback(data)}" target="_blank" rel="noopener">Send it on WhatsApp instead</a>, it takes one tap.`;
       };
-      if (!endpoint) { console.warn("quoteForm: set data-endpoint to your Apps Script /exec URL"); fail(); return; }
+      if (!endpoint) { console.warn("quoteForm: set data-endpoint to your Apps Script /exec URL or Deployment ID"); fail(); return; }
 
       qf.classList.add("is-sending");
       $(".qf__label", qf).textContent = "Sending…";
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 15000);
       try {
-        // text/plain keeps this a "simple" request, so no CORS preflight to Apps Script
-        const res = await fetch(endpoint, { method: "POST", body: JSON.stringify(data), signal: ctrl.signal });
-        const out = await res.json();
-        if (!out.ok) throw new Error(out.error || "failed");
+        // text/plain keeps this a "simple" request, avoiding CORS preflight to Apps Script
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(data),
+          signal: ctrl.signal
+        });
+        let out = null;
+        try {
+          out = await res.json();
+        } catch (_) {
+          if (res.ok || res.type === "opaque") out = { ok: true };
+        }
+        if (out && !out.ok) throw new Error((out && out.error) || "failed");
         qf.reset();
         $$(".qf__field", qf).forEach((f) => f.classList.remove("is-ok", "is-bad"));
         showDone(data);
