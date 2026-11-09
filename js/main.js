@@ -96,6 +96,21 @@
     el.classList.add("reveal-split");
   });
 
+  /* ---------- speed: pause looping animations in sections that are off screen ---------- */
+  const offIO = new IntersectionObserver((entries) => {
+    entries.forEach((e) => e.target.classList.toggle("is-off", !e.isIntersecting));
+  }, { rootMargin: "150px 0px" });
+  $$("main > section, main > .marquee").forEach((s) => offIO.observe(s));
+
+  /* ---------- icons draw their lines as they scroll in ---------- */
+  if (!reduceMotion) {
+    $$(".why__icon svg, .lp svg, .pledge__ic svg, .gbox__ic svg, .kchip svg").forEach((svg) => {
+      if (!svg.closest(".reveal")) return;
+      $$("path, circle, rect, line, polyline", svg).forEach((s) => s.setAttribute("pathLength", "1"));
+      svg.classList.add("draw");
+    });
+  }
+
   /* ---------- reveal on scroll ---------- */
   const revealIO = new IntersectionObserver((entries) => {
     entries.forEach((e) => {
@@ -559,6 +574,208 @@
     });
   }
 
+  /* ---------- quote sheet: the real quote form slides up over the page ---------- */
+  // The form is MOVED (not copied), so its checks, spam trap and sending code stay exactly as they are.
+  const sheet = $("#quoteSheet");
+  const sheetSlot = $("#sheetSlot");
+  const quoteBox = $("#quote");
+  const qbar = $("#qbar");
+  if (sheet && sheetSlot && quoteBox && typeof sheet.showModal === "function") {
+    let holder = null;
+    let closing = null;
+    const AUTO_KEY = "qfAutoShown";
+    const markAutoDone = () => { try { sessionStorage.setItem(AUTO_KEY, "1"); } catch (_) { /* private mode */ } };
+    let openedByHand = false; // the visitor opened the form themselves on this page view
+    const openSheet = (auto) => {
+      if (sheet.open) return;
+      if (auto === true) markAutoDone(); // the pop-up shows once per visit
+      else openedByHand = true;
+      sheet.classList.toggle("is-auto", auto === true);
+      // keep the page the same height while the form is away, so nothing jumps
+      holder = document.createElement("div");
+      holder.className = "qf-holder";
+      holder.style.height = `${quoteBox.offsetHeight}px`;
+      quoteBox.replaceWith(holder);
+      quoteBox.classList.add("is-in");
+      sheetSlot.appendChild(quoteBox);
+      sheetSlot.scrollTop = 0;
+      sheet.showModal();
+      doc.classList.add("sheet-open");
+      requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.add("is-open")));
+    };
+    const closeSheet = () => {
+      if (!sheet.open || closing) return;
+      sheet.classList.remove("is-open");
+      closing = setTimeout(() => { closing = null; sheet.close(); }, reduceMotion ? 0 : 320);
+    };
+    sheet.addEventListener("close", () => {
+      clearTimeout(closing);
+      closing = null;
+      sheet.classList.remove("is-open");
+      doc.classList.remove("sheet-open");
+      if (holder) { holder.replaceWith(quoteBox); holder = null; }
+    });
+    sheet.addEventListener("cancel", (e) => { e.preventDefault(); closeSheet(); });
+    sheet.addEventListener("click", (e) => { if (e.target === sheet) closeSheet(); });
+    $(".sheet__close", sheet).addEventListener("click", closeSheet);
+    if (qbar) qbar.addEventListener("click", () => openSheet());
+    // every "Get my free quote" button opens the sheet instead of scrolling to the end
+    $$('a[href="#quote"]').forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); openSheet(); }));
+
+    // open by itself ONCE per visit, after about 2.5 screens of scrolling (or a third of the page, if sooner)
+    let autoDone = false;
+    try { autoDone = sessionStorage.getItem(AUTO_KEY) === "1"; } catch (_) { /* private mode */ }
+    if (!autoDone) {
+      const startedAt = Date.now();
+      const quoteForm = $("#quoteForm");
+      const contactSec = $("#contact");
+      let autoQueued = false;
+      let autoTimer = null;
+      let autoFired = false;
+      const stopAuto = () => {
+        autoFired = true;
+        clearTimeout(autoTimer);
+        window.removeEventListener("scroll", onAutoScroll);
+      };
+      const checkAuto = () => {
+        autoQueued = false;
+        if (autoFired) return;
+        const max = doc.scrollHeight - innerHeight;
+        // they already opened it themselves: don't push it on them again in this page view
+        if (openedByHand) { stopAuto(); return; }
+        if (max <= 0 || scrollY < Math.min(max * 0.3, innerHeight * 2.5)) return;
+        const waitLeft = 5000 - (Date.now() - startedAt);
+        if (waitLeft > 0) { // deep already: check again once 5s have passed
+          if (!autoTimer) autoTimer = setTimeout(() => { autoTimer = null; onAutoScroll(); }, waitLeft + 50);
+          return;
+        }
+        // already sent, or the form is already on screen: never pop up
+        if (quoteForm.hidden || (contactSec && contactSec.getBoundingClientRect().top < innerHeight)) { markAutoDone(); stopAuto(); return; }
+        // a menu is open, or the form is open: try again on the next scroll
+        if (sheet.open || nav.classList.contains("is-open") || (dock && dock.classList.contains("is-open"))) return;
+        stopAuto();
+        openSheet(true);
+      };
+      function onAutoScroll() {
+        if (!autoQueued) { autoQueued = true; requestAnimationFrame(checkAuto); }
+      }
+      window.addEventListener("scroll", onAutoScroll, { passive: true });
+    }
+  }
+
+  /* ---------- quote bar + jump chips: shown after the hero; the bar hides at the contact section ---------- */
+  const jump = $("#jump");
+  const heroEl = $(".hero");
+  const contactEl = $("#contact");
+  if (heroEl && (qbar || jump)) {
+    new IntersectionObserver(([e]) => {
+      const pastHero = !e.isIntersecting && e.boundingClientRect.top < 0;
+      if (qbar) qbar.classList.toggle("is-on", pastHero);
+      if (jump) jump.classList.toggle("is-on", pastHero);
+    }).observe(heroEl);
+  }
+  if (contactEl && qbar) {
+    // the form is already on screen here, so the bar steps aside
+    new IntersectionObserver(([e]) => {
+      qbar.classList.toggle("at-contact", e.isIntersecting);
+    }, { rootMargin: "0px 0px -30% 0px" }).observe(contactEl);
+  }
+
+  // highlight the chip for the section on screen, and keep it visible in the row
+  const jumpRow = $("#jumpRow");
+  if (jumpRow) {
+    const chips = new Map($$("a", jumpRow).map((a) => [a.getAttribute("href").slice(1), a]));
+    // one highlight that slides from chip to chip
+    const jumpPill = $(".jump__pill", jumpRow);
+    let activeChip = null;
+    const movePillTo = (chip) => {
+      if (!jumpPill || !chip) return;
+      jumpPill.style.width = `${chip.offsetWidth}px`;
+      jumpPill.style.transform = `translateX(${chip.offsetLeft}px)`;
+      jumpPill.classList.add("is-on");
+    };
+    window.addEventListener("resize", () => movePillTo(activeChip), { passive: true });
+    const chipIO = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        const chip = chips.get(e.target.id);
+        if (!e.isIntersecting || !chip) return;
+        chips.forEach((c) => c.classList.toggle("is-active", c === chip));
+        activeChip = chip;
+        movePillTo(chip);
+        if (jump.classList.contains("is-on")) {
+          jumpRow.scrollTo({ left: chip.offsetLeft - (jumpRow.clientWidth - chip.offsetWidth) / 2, behavior: reduceMotion ? "auto" : "smooth" });
+        }
+      });
+    }, { rootMargin: "-45% 0px -50% 0px" });
+    chips.forEach((_, id) => { const s = document.getElementById(id); if (s) chipIO.observe(s); });
+
+    // slider under the row: its thumb shows which part of the row is visible; drag it to scroll the row
+    const track = $("#jumpTrack");
+    const thumb = track && $(".jump__thumb", track);
+    if (track && thumb) {
+      let thumbQueued = false;
+      const paintThumb = () => {
+        thumbQueued = false;
+        const sw = jumpRow.scrollWidth;
+        const cw = jumpRow.clientWidth;
+        if (!cw) return; // row not on screen (desktop)
+        const scrollable = sw - cw > 2;
+        jump.classList.toggle("can-slide", scrollable); // shows the slider, so it can be measured below
+        if (!scrollable) return;
+        const tw = track.clientWidth;
+        if (!tw) return;
+        const size = Math.max(28, (cw / sw) * tw);
+        const left = jumpRow.scrollLeft / (sw - cw);
+        thumb.style.width = `${size.toFixed(1)}px`;
+        thumb.style.transform = `translateX(${(left * (tw - size)).toFixed(1)}px)`;
+        jump.classList.toggle("at-start", left < 0.02);
+        jump.classList.toggle("at-end", left > 0.98);
+      };
+      const queueThumb = () => { if (!thumbQueued) { thumbQueued = true; requestAnimationFrame(paintThumb); } };
+      jumpRow.addEventListener("scroll", queueThumb, { passive: true });
+      window.addEventListener("resize", queueThumb, { passive: true });
+      new MutationObserver(queueThumb).observe(jump, { attributes: true, attributeFilter: ["class"] });
+
+      // drag (or tap) the slider to move the row
+      const scrollToPointer = (e) => {
+        const r = track.getBoundingClientRect();
+        const p = Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1);
+        jumpRow.scrollLeft = p * (jumpRow.scrollWidth - jumpRow.clientWidth);
+      };
+      track.addEventListener("pointerdown", (e) => {
+        try { track.setPointerCapture(e.pointerId); } catch (_) { /* drag still works while the finger stays on the slider */ }
+        track.classList.add("is-drag");
+        scrollToPointer(e);
+      });
+      track.addEventListener("pointermove", (e) => { if (track.classList.contains("is-drag")) scrollToPointer(e); });
+      const endDrag = () => track.classList.remove("is-drag");
+      track.addEventListener("pointerup", endDrag);
+      track.addEventListener("pointercancel", endDrag);
+      queueThumb();
+    }
+  }
+
+  /* ---------- phones: long lists show a few items, then "Show more" ---------- */
+  const mqPhone = window.matchMedia("(max-width: 860px)");
+  $$("[data-more]").forEach((list) => {
+    const extra = Array.from(list.children).slice(Number(list.dataset.more) || 0);
+    if (!extra.length) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "more-btn";
+    btn.innerHTML = `<span>Show ${extra.length} more ${list.dataset.moreLabel || ""}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
+    list.after(btn);
+    let opened = false;
+    const apply = () => {
+      const clip = mqPhone.matches && !opened;
+      extra.forEach((el) => el.classList.toggle("more-hidden", clip));
+      btn.hidden = !clip;
+    };
+    btn.addEventListener("click", () => { opened = true; apply(); });
+    if (mqPhone.addEventListener) mqPhone.addEventListener("change", apply);
+    apply();
+  });
+
   /* ---------- pointer effects (desktop only) ---------- */
   if (!finePointer || reduceMotion) return;
 
@@ -577,6 +794,32 @@
     tx = e.clientX; ty = e.clientY;
     if (!glowRaf) glowRaf = requestAnimationFrame(moveGlow);
   }, { passive: true });
+
+  // hero depth: background drifts against the mouse, floating chips drift with it
+  // (uses viewport size, never reads layout, and paints at most once per frame)
+  const hero = $(".hero");
+  const heroBg = $(".hero__bg");
+  const heroChips = $$(".float-chip");
+  if (hero && heroBg) {
+    let hx = 0, hy = 0, heroRaf = null;
+    const paintHero = () => {
+      heroRaf = null;
+      heroBg.style.translate = `${(hx * -18).toFixed(1)}px ${(hy * -14).toFixed(1)}px`;
+      heroChips.forEach((c, i) => {
+        const k = 8 + i * 5;
+        c.style.translate = `${(hx * k).toFixed(1)}px ${(hy * k).toFixed(1)}px`;
+      });
+    };
+    hero.addEventListener("pointermove", (e) => {
+      hx = e.clientX / innerWidth - 0.5;
+      hy = e.clientY / innerHeight - 0.5;
+      if (!heroRaf) heroRaf = requestAnimationFrame(paintHero);
+    }, { passive: true });
+    hero.addEventListener("pointerleave", () => {
+      hx = 0; hy = 0;
+      if (!heroRaf) heroRaf = requestAnimationFrame(paintHero);
+    });
+  }
 
   // card spotlight
   $$(".spot").forEach((card) => {

@@ -3764,3 +3764,458 @@ textarea.qf__input { height: auto; min-height: 120px; padding-top: 30px; resize:
   .nav__status { display: inline-flex; font-size: 11px; }
 }
 @media (max-width: 360px) { .nav__mca { display: none; } }
+
+/* =========================================================
+   v8 — premium motion, kept fast
+   Rules: only transform / opacity / stroke move (no layout work),
+   each effect runs once as it scrolls in, and looping animations
+   pause while their section is off screen.
+   ========================================================= */
+
+/* speed: loops in a section you cannot see stop using the CPU / battery */
+.is-off, .is-off *, .is-off *::before, .is-off *::after { animation-play-state: paused !important; }
+
+/* buttons: a soft press when tapped or clicked */
+.btn:not(.reveal) { transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease), background 0.3s, border-color 0.3s, scale 0.18s var(--ease); }
+.btn:active { scale: 0.97; }
+
+/* hero: background and floating chips follow the mouse a little (desktop, set by main.js) */
+.has-pointer .hero__bg { will-change: translate; transition: translate 1.1s var(--ease); }
+.has-pointer .float-chip { transition: translate 0.9s var(--ease); }
+
+/* hero: one light sweep across the numbers bar after the page opens */
+.stats { position: relative; }
+.stats::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(167, 139, 250, 0.16) 48%, rgba(34, 211, 238, 0.12) 52%, transparent 70%);
+  transform: translateX(-100%);
+}
+.is-loaded .stats::after { animation: statsSweep 1.8s var(--ease) 1.2s forwards; }
+@keyframes statsSweep { to { transform: translateX(100%); } }
+
+/* small labels: the short line before the text draws in */
+.eyebrow.reveal::before {
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 0.9s var(--ease) calc(var(--d, 0) * 90ms + 0.25s);
+}
+.eyebrow.reveal.is-in::before { transform: none; }
+
+/* cards rise in with a slight scale, so they feel lifted onto the page */
+.service.reveal:not(.is-in),
+.why__item.reveal:not(.is-in),
+.step.reveal:not(.is-in),
+.gbox__col.reveal:not(.is-in),
+.kchip.reveal:not(.is-in) { transform: translateY(44px) scale(0.96); }
+
+/* photos settle into place as their card appears */
+.reveal:not(.is-in) .media.has-img img { transform: scale(1.12); }
+
+/* process: each step number pops in */
+.step__num { transition: transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) calc(var(--d, 0) * 90ms + 0.3s); }
+.step.reveal:not(.is-in) .step__num { transform: scale(0.4) rotate(-25deg); }
+
+/* icons draw their own lines (main.js marks them with .draw) */
+.reveal svg.draw > * {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 1.3s var(--ease) calc(var(--d, 0) * 90ms + 0.35s);
+}
+.reveal.is-in svg.draw > * { stroke-dashoffset: 0; }
+
+/* contact tiles: the icon spins in */
+.reach__tile.reveal:not(.is-in) .reach__ic { transform: scale(0.5) rotate(-20deg); }
+
+/* my story: the line grows down, then each dot pops */
+.timeline::before { transform-origin: 50% 0; transition: transform 1.8s var(--ease) 0.2s; }
+.timeline:not(:has(.is-in))::before { transform: scaleY(0); }
+.timeline li::before { transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) calc(var(--d, 0) * 90ms + 0.4s); }
+.timeline li.reveal:not(.is-in)::before { transform: scale(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .stats::after { display: none; }
+  .eyebrow.reveal::before, .timeline::before, .timeline li::before, .step__num, .reach__ic { transform: none !important; }
+  .reveal svg.draw > * { stroke-dashoffset: 0; }
+  .btn:active { scale: none; }
+}
+
+/* =========================================================
+   v9 — leads: sticky quote bar + quote sheet,
+   phones: jump chips + "Show more" on long lists
+   ========================================================= */
+
+/* ---------- sticky quote bar ---------- */
+.qbar {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  z-index: 54; /* under the phone contact menu (55), above the page */
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 8px 8px 18px;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 60%), rgba(12, 10, 24, 0.88);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 20px 50px -18px rgba(0, 0, 0, 0.95), 0 0 40px -14px rgba(139, 92, 246, 0.6);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0;
+  transform: translate(-50%, 140%);
+  pointer-events: none;
+  transition: transform 0.55s var(--ease), opacity 0.35s, border-color 0.3s;
+}
+.qbar.is-on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.qbar.is-on.at-contact,
+.nav.is-open ~ .qbar,
+.dock.is-open ~ .qbar { opacity: 0; transform: translate(-50%, 140%); pointer-events: none; }
+.qbar:hover { border-color: rgba(167, 139, 250, 0.65); }
+.qbar__dot { position: relative; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); }
+.qbar__txt { display: grid; line-height: 1.2; }
+.qbar__txt b { font: 600 15px var(--display); white-space: nowrap; }
+.qbar__txt small { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.qbar__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: linear-gradient(110deg, #7c3aed, #8b5cf6 45%, #06b6d4);
+  box-shadow: 0 10px 30px -10px rgba(139, 92, 246, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font: 600 14px var(--font);
+  white-space: nowrap;
+}
+.qbar__go svg { transition: transform 0.35s var(--ease); }
+.qbar:hover .qbar__go svg { transform: translateX(3px); }
+.qbar:active { scale: 0.98; }
+
+@media (max-width: 860px) {
+  /* full width, leaving room on the right for the round contact button */
+  .qbar { left: 16px; right: 86px; bottom: 18px; min-height: 56px; padding: 6px 6px 6px 14px; gap: 10px; transform: translateY(140%); }
+  .qbar.is-on { transform: none; }
+  .qbar.is-on.at-contact, .nav.is-open ~ .qbar, .dock.is-open ~ .qbar { transform: translateY(140%); }
+  .qbar__txt { flex: 1; min-width: 0; }
+  .qbar__txt b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
+  .qbar__go { height: 44px; padding: 0 14px; font-size: 13.5px; }
+}
+@media (max-width: 380px) {
+  .qbar__txt small { display: none; }
+}
+
+/* ---------- quote sheet (native <dialog>) ---------- */
+.sheet {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  overflow: hidden;
+}
+.sheet::backdrop {
+  background: radial-gradient(120% 70% at 50% 100%, rgba(76, 29, 149, 0.35), transparent 60%), rgba(4, 5, 10, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  transition: opacity 0.32s var(--ease);
+}
+.sheet.is-open::backdrop { opacity: 1; }
+.sheet__panel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(760px, 100% - 32px);
+  max-height: calc(100% - 48px);
+  border-radius: 28px;
+  background: var(--bg-2);
+  box-shadow: 0 40px 120px -30px rgba(0, 0, 0, 0.95), 0 0 80px -30px rgba(139, 92, 246, 0.6);
+  opacity: 0;
+  transform: translate(-50%, -46%) scale(0.97);
+  transition: opacity 0.3s var(--ease), transform 0.4s var(--ease);
+  display: flex;
+  flex-direction: column;
+}
+.sheet.is-open .sheet__panel { opacity: 1; transform: translate(-50%, -50%); }
+.sheet__slot { overflow-y: auto; overscroll-behavior: contain; border-radius: inherit; }
+.sheet .qf { width: 100%; margin: 0; border-radius: inherit; box-shadow: none; }
+.sheet__grip { display: none; }
+.sheet__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.25s, transform 0.35s var(--ease);
+}
+.sheet__close:hover { background: rgba(255, 255, 255, 0.12); transform: rotate(90deg); }
+.sheet__close svg { width: 18px; height: 18px; }
+html.sheet-open { overflow: hidden; }
+
+@media (max-width: 860px) {
+  /* phones: slides up from the bottom */
+  .sheet__panel {
+    left: 0;
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    max-height: 92%;
+    border-radius: 24px 24px 0 0;
+    opacity: 1;
+    transform: translateY(100%);
+    transition: transform 0.42s var(--ease);
+  }
+  .sheet.is-open .sheet__panel { transform: none; }
+  .sheet__grip { display: block; position: absolute; top: 8px; left: 50%; z-index: 5; width: 40px; height: 4px; margin-left: -20px; border-radius: 4px; background: rgba(255, 255, 255, 0.22); }
+  .sheet .qf { padding-top: 30px; padding-bottom: calc(22px + env(safe-area-inset-bottom)); }
+  .sheet .qf__title { padding-right: 44px; }
+}
+
+/* ---------- phones: jump chips under the top bar ---------- */
+.jump { display: none; }
+@media (max-width: 860px) {
+  .jump {
+    position: fixed;
+    top: 84px;
+    left: 0;
+    right: 0;
+    z-index: 49; /* under the top bar (50) */
+    display: block;
+    padding: 0 16px;
+    opacity: 0;
+    transform: translateY(-12px);
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.5s var(--ease), top 0.5s var(--ease);
+  }
+  .jump.is-on { opacity: 1; transform: none; pointer-events: auto; }
+  /* the top bar hides while scrolling down: the chips move up into its place */
+  .nav.is-hidden ~ .jump { top: 12px; }
+  .nav.is-open ~ .jump { opacity: 0; pointer-events: none; }
+  .jump__row {
+    display: flex;
+    gap: 6px;
+    padding: 5px;
+    border: 1px solid var(--line-2);
+    border-radius: 999px;
+    background: rgba(10, 10, 20, 0.86);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    box-shadow: 0 14px 34px -16px rgba(0, 0, 0, 0.95);
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent);
+    mask-image: linear-gradient(90deg, #000 88%, transparent);
+  }
+  .jump__row::-webkit-scrollbar { display: none; }
+  .jump__row a {
+    flex: none;
+    padding: 7px 13px;
+    border-radius: 999px;
+    color: var(--muted);
+    font: 500 13px var(--font);
+    white-space: nowrap;
+    transition: color 0.25s, background 0.25s;
+  }
+  .jump__row a.is-active { color: #fff; background: linear-gradient(110deg, rgba(124, 58, 237, 0.85), rgba(6, 182, 212, 0.75)); }
+  /* a jump lands with the section title clear of the bars */
+  main section[id] { scroll-margin-top: 56px; }
+}
+
+/* ---------- phones: "Show more" on long lists ---------- */
+.more-hidden { display: none !important; }
+.more-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px auto 0;
+  padding: 11px 20px;
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.08);
+  color: var(--text);
+  font: 600 14px var(--font);
+  cursor: pointer;
+  transition: background 0.25s, border-color 0.25s;
+}
+.more-btn[hidden] { display: none; }
+.more-btn:hover { background: rgba(139, 92, 246, 0.16); border-color: rgba(167, 139, 250, 0.7); }
+.more-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+@media (prefers-reduced-motion: reduce) {
+  .qbar, .jump, .sheet__panel, .sheet::backdrop { transition: none; }
+}
+
+/* ---------- v9.1: one sliding highlight in the jump row + friendly line on the auto-opened form ---------- */
+@media (max-width: 860px) {
+  .jump__row { position: relative; }
+  .jump__row a { position: relative; z-index: 1; }
+  .jump__row a.is-active { background: none; }
+  .jump__pill {
+    position: absolute;
+    top: 5px;
+    bottom: 5px;
+    left: 0;
+    width: 0;
+    border-radius: 999px;
+    background: linear-gradient(110deg, rgba(124, 58, 237, 0.9), rgba(6, 182, 212, 0.8));
+    box-shadow: 0 6px 18px -6px rgba(139, 92, 246, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.5s var(--ease), width 0.5s var(--ease), opacity 0.3s;
+  }
+  .jump__pill.is-on { opacity: 1; }
+}
+
+.sheet__hello { display: none; }
+.sheet.is-auto .sheet__hello {
+  display: block;
+  margin: 0;
+  padding: 16px 64px 14px 22px;
+  border-bottom: 1px solid var(--line);
+  border-radius: 28px 28px 0 0;
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0.16), rgba(34, 211, 238, 0.08));
+  color: var(--text);
+  font: 600 15px/1.4 var(--display);
+}
+.sheet.is-auto .qf { border-top-left-radius: 0; border-top-right-radius: 0; }
+@media (max-width: 860px) {
+  .sheet.is-auto .sheet__hello { padding-top: 22px; border-radius: 24px 24px 0 0; font-size: 14px; }
+  .sheet.is-auto .qf { padding-top: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jump__pill { transition: none; }
+}
+.sheet__hello span { margin-right: 6px; }
+
+/* ---------- v9.2: slider under the jump row (phones) ---------- */
+.jump__track { display: none; }
+@media (max-width: 860px) {
+  .jump.can-slide .jump__track {
+    position: relative;
+    display: block;
+    height: 14px; /* easy to touch; the visible line is thinner */
+    margin: 2px 26px 0;
+    cursor: grab;
+    touch-action: none;
+  }
+  .jump__track::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 5px;
+    height: 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  }
+  .jump__thumb {
+    position: absolute;
+    left: 0;
+    top: 5px;
+    height: 4px;
+    width: 40px;
+    border-radius: 4px;
+    background: var(--grad);
+    box-shadow: 0 0 10px rgba(139, 92, 246, 0.8);
+    transition: height 0.2s, top 0.2s;
+  }
+  .jump__track.is-drag { cursor: grabbing; }
+  .jump__track.is-drag .jump__thumb { top: 4px; height: 6px; }
+
+  /* fade only the side that still has hidden buttons */
+  .jump:not(.can-slide) .jump__row { -webkit-mask-image: none; mask-image: none; }
+  .jump.can-slide:not(.at-start):not(.at-end) .jump__row {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  }
+  .jump.can-slide.at-end .jump__row {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%);
+    mask-image: linear-gradient(90deg, transparent, #000 12%);
+  }
+}
+
+/* ---------- v9.3: name in capitals in the top bar ---------- */
+.nav__name { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+.nav__name .nav__mca { letter-spacing: 0.08em; }
+@media (max-width: 860px) { .nav__name { font-size: 13px; letter-spacing: 0.05em; } }
+@media (max-width: 380px) { .nav__name { font-size: 12px; letter-spacing: 0.03em; } }
+
+/* ---------- v9.3: phone chat button — glass-lit orb, "Chat" word, online dot ---------- */
+.dock__word, .dock__live { display: none; }
+@media (max-width: 860px) {
+  .dock__toggle {
+    background:
+      radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.38), transparent 46%),
+      linear-gradient(140deg, #8b5cf6 0%, #6d28d9 45%, #0891b2 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+      inset 0 -8px 16px -6px rgba(4, 5, 20, 0.45),
+      0 0 0 4px rgba(10, 10, 20, 0.7),
+      0 0 0 5px rgba(167, 139, 250, 0.35),
+      0 16px 34px -10px rgba(139, 92, 246, 0.95);
+    transition: scale 0.2s var(--ease), box-shadow 0.3s;
+  }
+  .dock__toggle:active { scale: 0.94; }
+  /* icon sits a little higher to make room for the word */
+  .dock__toggle svg { width: 20px; height: 20px; translate: 0 -6px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35)); transition: transform 0.4s var(--ease), opacity 0.3s, translate 0.4s var(--ease); }
+  .dock__word {
+    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 11px;
+    color: #fff;
+    font: 700 8.5px/1 var(--font);
+    letter-spacing: 0.16em;
+    text-align: center;
+    text-transform: uppercase;
+    text-indent: 0.16em; /* balance the letter spacing so the word sits centred */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    transition: opacity 0.25s, transform 0.35s var(--ease);
+  }
+  /* "online" dot */
+  .dock__live {
+    display: block;
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 12px;
+    height: 12px;
+    border: 2px solid #0c0a18;
+    border-radius: 50%;
+    background: #25d366;
+    box-shadow: 0 0 8px rgba(37, 211, 102, 0.9);
+  }
+  /* open: the word steps away and the close icon sits centred */
+  .dock.is-open .dock__word { opacity: 0; transform: translateY(4px); }
+  .dock.is-open .dock__toggle svg { translate: 0 0; }
+  .dock.is-open .dock__live { opacity: 0; }
+}
+
+/* ---------- v9.4: hook chips use line icons instead of emojis ---------- */
+.kchip b {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.28), rgba(34, 211, 238, 0.12));
+  box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.3);
+}
+.kchip b svg { width: 16px; height: 16px; fill: none; stroke: #c4b5fd; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
