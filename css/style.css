@@ -4219,3 +4219,46 @@ html.sheet-open { overflow: hidden; }
   box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.3);
 }
 .kchip b svg { width: 16px; height: 16px; fill: none; stroke: #c4b5fd; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* =========================================================
+   v10 — phone speed: same look, without the effects that make a
+   phone's graphics chip redraw the screen on every scroll frame.
+   Desktop is untouched.
+   ========================================================= */
+@media (max-width: 860px) {
+  /* 1. live "frosted glass" blur is the most expensive effect while scrolling:
+        use solid, slightly darker backgrounds instead */
+  *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .nav, .nav.is-scrolled { background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 60%), rgba(10, 10, 20, 0.95); }
+  .jump__row { background: rgba(12, 12, 22, 0.97); }
+  .qbar { background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 60%), rgba(14, 12, 26, 0.97); }
+  .badge, .float-chip, .btn--ghost, .stats { background-color: rgba(14, 16, 26, 0.92); }
+  .qf { background: radial-gradient(120% 80% at 0% 0%, rgba(139, 92, 246, 0.14), transparent 55%), rgba(12, 12, 22, 0.97); }
+  .dock::before { background: radial-gradient(120% 70% at 100% 100%, rgba(76, 29, 149, 0.35), transparent 60%), rgba(4, 5, 10, 0.9); }
+  .sheet::backdrop { background: rgba(4, 5, 10, 0.88); }
+
+  /* 2. the film-grain texture is a full-screen layer drawn over everything */
+  body::before { display: none; }
+
+  /* 3. never-ending light effects that repaint every frame: keep them still */
+  .nav::before, .ring, .qf::before, .shimmer { animation: none !important; }
+  .beam { display: none; }
+
+  /* 4. hero glow orbs: huge moving layers on a sharp phone screen; keep the colour, stop the motion */
+  .orb { animation: none; will-change: auto; }
+
+  /* 5. big soft blurs: the gradients are already soft without an extra blur filter */
+  .hero__copy::before, .me__photo::before { filter: none; }
+}
+
+/* phones: content appears quicker, with a shorter move (desktop unchanged) */
+@media (max-width: 860px) {
+  .reveal { transform: translateY(18px); transition-duration: 0.45s, 0.55s; transition-delay: calc(var(--d, 0) * 40ms); }
+  .service.reveal:not(.is-in),
+  .why__item.reveal:not(.is-in),
+  .step.reveal:not(.is-in),
+  .gbox__col.reveal:not(.is-in),
+  .kchip.reveal:not(.is-in) { transform: translateY(18px) scale(0.98); }
+  .split .w > span { transition-duration: 0.6s; transition-delay: calc(var(--i, 0) * 25ms); }
+  .reveal:not(.is-in) .media.has-img img { transform: scale(1.05); }
+}

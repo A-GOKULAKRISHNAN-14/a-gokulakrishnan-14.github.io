@@ -116,7 +116,10 @@
     entries.forEach((e) => {
       if (e.isIntersecting) { e.target.classList.add("is-in"); revealIO.unobserve(e.target); }
     });
-  }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
+  }, window.matchMedia("(max-width: 860px)").matches
+    // phones scroll fast: start showing content just BEFORE it comes on screen, so nothing looks empty
+    ? { rootMargin: "0px 0px 15% 0px", threshold: 0 }
+    : { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
   $$(".reveal, .split").forEach((el) => revealIO.observe(el));
 
   /* ---------- statement: words light up as you scroll ---------- */
